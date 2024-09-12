@@ -48,7 +48,16 @@ impl std::fmt::Debug for Address {
 
 impl Address {
     pub fn from_public_key_bytes(bytes: &[u8]) -> Address {
-        unimplemented!()
+        // Hash the input bytes using SHA256
+        let hash = digest::digest(&digest::SHA256, bytes);
+        
+        // Extract the last 20 bytes of the hash
+        let hash_bytes = hash.as_ref();
+        let mut address_bytes: [u8; 20] = [0; 20];
+        address_bytes.copy_from_slice(&hash_bytes[hash_bytes.len() - 20..]);
+
+        // Return the address
+        Address(address_bytes)
     }
 }
 // DO NOT CHANGE THIS COMMENT, IT IS FOR AUTOGRADER. BEFORE TEST
