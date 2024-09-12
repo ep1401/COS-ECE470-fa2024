@@ -1,4 +1,6 @@
 use serde::{Serialize, Deserialize};
+use ring::digest;  // Import the `ring` crate's digest module
+use hex_literal::hex; // Import the `hex!` macro
 
 // 20-byte address
 #[derive(Eq, PartialEq, Serialize, Deserialize, Clone, Hash, Default, Copy)]
@@ -50,13 +52,15 @@ impl Address {
     pub fn from_public_key_bytes(bytes: &[u8]) -> Address {
         // Hash the input bytes using SHA256
         let hash = digest::digest(&digest::SHA256, bytes);
-        
+
         // Extract the last 20 bytes of the hash
-        let hash_bytes = hash.as_ref();
+        let hash_bytes = hash.as_ref(); // Get the result as a byte slice
+
+        // Create a 20-byte array from the last 20 bytes of the hash
         let mut address_bytes: [u8; 20] = [0; 20];
         address_bytes.copy_from_slice(&hash_bytes[hash_bytes.len() - 20..]);
 
-        // Return the address
+        // Return the Address struct with the last 20 bytes of the hash
         Address(address_bytes)
     }
 }
