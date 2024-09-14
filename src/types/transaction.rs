@@ -1,6 +1,6 @@
 use crate::types::address::Address;
 use serde::{Serialize, Deserialize};
-use ring::signature::{Ed25519KeyPair, Signature, UnparsedPublicKey, ED25519};
+use ring::signature::{Ed25519KeyPair, Signature, UnparsedPublicKey, KeyPair, ED25519};
 use rand::Rng;
 use bincode;
 
@@ -16,6 +16,23 @@ pub struct SignedTransaction {
     pub transaction: Transaction,
     pub signature: Vec<u8>,
     pub public_key: Vec<u8>,
+}
+
+impl SignedTransaction {
+    /// Creates a SignedTransaction from a transaction and a key pair
+    pub fn new(transaction: Transaction, signature: &Signature, key_pair: &Ed25519KeyPair) -> Self {
+        // Convert signature to a vector of bytes
+        let signature_vector: Vec<u8> = signature.as_ref().to_vec();
+        
+        // Convert the public key to a vector of bytes
+        let public_key_vector: Vec<u8> = key_pair.public_key().as_ref().to_vec();
+
+        SignedTransaction {
+            transaction,
+            signature: signature_vector,
+            public_key: public_key_vector,
+        }
+    }
 }
 
 /// Create digital signature of a transaction
