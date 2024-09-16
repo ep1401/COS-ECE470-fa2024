@@ -12,6 +12,7 @@ pub struct MerkleTree {
 
 impl MerkleTree {
     pub fn new<T>(data: &[T]) -> Self where T: Hashable {
+        // If the input data is empty, return an empty Merkle tree with a default root.
         if data.is_empty() {
             return MerkleTree {
                 leaves: vec![],
@@ -22,6 +23,7 @@ impl MerkleTree {
 
         let mut leaves: Vec<H256> = data.iter().map(|datum| datum.hash()).collect();
 
+        // If there is only one leaf, the root is that leaf's hash.
         if leaves.len() == 1 {
             return MerkleTree {
                 leaves: leaves.clone(),
@@ -37,6 +39,7 @@ impl MerkleTree {
         let mut tree = vec![];
         tree.push(leaves.clone());
 
+        // Build the tree layer by layer by hashing pairs of nodes.
         while leaves.len() > 1 {
             let mut next_layer = vec![];
             for chunk in leaves.chunks(2) {
@@ -48,7 +51,7 @@ impl MerkleTree {
             leaves = next_layer;
         }
 
-        let root = leaves[0];
+        let root = leaves[0]; // The root is the only remaining node
         MerkleTree {
             leaves: tree[0].clone(),
             root,
@@ -68,6 +71,7 @@ impl MerkleTree {
         let mut proof = vec![];
         let mut idx = index;
 
+        // Traverse up the tree, collecting sibling hashes for the proof.
         for layer in &self.tree[..self.tree.len() - 1] {
             let sibling_idx = if idx % 2 == 0 { idx + 1 } else { idx - 1 };
             if sibling_idx < layer.len() {
@@ -89,6 +93,7 @@ pub fn verify(root: &H256, datum: &H256, proof: &[H256], index: usize, leaf_size
     let mut current_hash = *datum;
     let mut idx = index;
 
+    // Combine the datum with each hash in the proof to compute the root
     for sibling in proof {
         if idx % 2 == 0 {
             current_hash = hash_two(&current_hash, sibling);
@@ -98,6 +103,7 @@ pub fn verify(root: &H256, datum: &H256, proof: &[H256], index: usize, leaf_size
         idx /= 2;
     }
 
+    // Check if the computed root matches the expected root
     current_hash == *root
 }
 
