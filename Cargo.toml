@@ -5,6 +5,7 @@ authors = []
 edition = "2018"
 
 [dependencies]
+sha2 = "0.10"
 futures = "0.3"
 smol = "1.2"
 async-dup = "1.2"

@@ -1,6 +1,5 @@
 use serde::{Serialize, Deserialize};
 use ring::digest;  // Import the `ring` crate's digest module
-use hex_literal::hex; // Import the `hex!` macro
 
 // 20-byte address
 #[derive(Eq, PartialEq, Serialize, Deserialize, Clone, Hash, Default, Copy)]

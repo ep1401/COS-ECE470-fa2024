@@ -18,6 +18,7 @@ pub struct SignedTransaction {
     pub public_key: Vec<u8>,
 }
 
+// Is this impl actually needed? 
 impl SignedTransaction {
     /// Creates a SignedTransaction from a transaction and a key pair
     pub fn new(transaction: Transaction, signature: &Signature, key_pair: &Ed25519KeyPair) -> Self {
