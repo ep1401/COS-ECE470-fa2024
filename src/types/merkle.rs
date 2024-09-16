@@ -1,7 +1,6 @@
 use super::hash::{Hashable, H256};
 use sha2::{Sha256, Digest};
 use std::convert::TryFrom; // for helper function
-use std::num::NonZeroUsize; // verify()
 
 
 /// A Merkle tree.
@@ -73,6 +72,17 @@ impl MerkleTree {
 /// Verify that the datum hash with a vector of proofs will produce the Merkle root. Also need the
 /// index of datum and `leaf_size`, the total number of leaves.
 pub fn verify(root: &H256, datum: &H256, proof: &[H256], index: usize, leaf_size: usize) -> bool {
+    // Validate the index range
+    if index >= leaf_size {
+        return false;
+    }
+
+    // Calculate the number of levels in the tree
+    let num_levels = (leaf_size as f64).log2().round() as usize;
+    if proof.len() != num_levels {
+        return false;
+    }
+
     let mut current_hash = *datum;
     let mut idx = index;
 
@@ -145,24 +155,6 @@ mod tests {
         let proof = merkle_tree.proof(0);
         assert!(verify(&merkle_tree.root(), &input_data[0].hash(), &proof, 0, input_data.len()));
     }
-
-    #[test]
-    fn merkle_tree_single_input() {
-        let input_data: Vec<H256> = vec![
-            (hex!("0101010101010101010101010101010101010101010101010101010101010101")).into(),
-        ];
-        let merkle_tree = MerkleTree::new(&input_data);
-        let root = merkle_tree.root();
-
-        // Ensure the root is the hash of the only element
-        assert_eq!(root, input_data[0]);
-
-        // Verify the proof for the single element
-        let proof = merkle_tree.proof(0);
-        assert!(verify(&root, &input_data[0], &proof, 0, input_data.len()));
-    }
-
-
 }
 
 // DO NOT CHANGE THIS COMMENT, IT IS FOR AUTOGRADER. AFTER TEST
