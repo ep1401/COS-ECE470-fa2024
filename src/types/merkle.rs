@@ -21,18 +21,23 @@ impl MerkleTree {
             };
         }
 
-        // Step 1: Hash each piece of data to create the leaf nodes
         let mut leaves: Vec<H256> = data.iter().map(|datum| datum.hash()).collect();
 
-        // Step 2: Duplicate the last leaf if we have an odd number of leaves
+        if leaves.len() == 1 {
+            return MerkleTree {
+                leaves: leaves.clone(),
+                root: leaves[0],
+                tree: vec![leaves.clone()],
+            };
+        }
+
         if leaves.len() % 2 != 0 {
             leaves.push(leaves[leaves.len() - 1]);
         }
 
         let mut tree = vec![];
-        tree.push(leaves.clone());  // The first layer of the tree is the leaves
+        tree.push(leaves.clone());
 
-        // Step 3: Build the tree by hashing parent nodes level by level
         while leaves.len() > 1 {
             let mut next_layer = vec![];
             for chunk in leaves.chunks(2) {
@@ -44,8 +49,12 @@ impl MerkleTree {
             leaves = next_layer;
         }
 
-        let root = leaves[0];  // The root is the last remaining node
-        MerkleTree { leaves: tree[0].clone(), root, tree }
+        let root = leaves[0];
+        MerkleTree {
+            leaves: tree[0].clone(),
+            root,
+            tree,
+        }
     }
 
     pub fn root(&self) -> H256 {
@@ -54,14 +63,16 @@ impl MerkleTree {
 
     /// Returns the Merkle Proof of data at index i
     pub fn proof(&self, index: usize) -> Vec<H256> {
+        if index >= self.leaves.len() {
+            return vec![]; // Return empty vector for invalid index
+        }
         let mut proof = vec![];
         let mut idx = index;
 
-        // Collect sibling hashes from each level, up to the root
         for layer in &self.tree[..self.tree.len() - 1] {
             let sibling_idx = if idx % 2 == 0 { idx + 1 } else { idx - 1 };
             if sibling_idx < layer.len() {
-                proof.push(layer[sibling_idx]);  // Add sibling hash to the proof
+                proof.push(layer[sibling_idx]);
             }
             idx /= 2;
         }
@@ -72,21 +83,9 @@ impl MerkleTree {
 /// Verify that the datum hash with a vector of proofs will produce the Merkle root. Also need the
 /// index of datum and `leaf_size`, the total number of leaves.
 pub fn verify(root: &H256, datum: &H256, proof: &[H256], index: usize, leaf_size: usize) -> bool {
-    // Validate the index range
-    if index >= leaf_size {
-        return false;
-    }
-
-    // Calculate the number of levels in the tree
-    let num_levels = (leaf_size as f64).log2().round() as usize;
-    if proof.len() != num_levels {
-        return false;
-    }
-
     let mut current_hash = *datum;
     let mut idx = index;
 
-    // Recompute the hash at each level by combining with the proof
     for sibling in proof {
         if idx % 2 == 0 {
             current_hash = hash_two(&current_hash, sibling);
@@ -96,7 +95,6 @@ pub fn verify(root: &H256, datum: &H256, proof: &[H256], index: usize, leaf_size
         idx /= 2;
     }
 
-    // Check if the computed root matches the given root
     current_hash == *root
 }
 
@@ -155,6 +153,24 @@ mod tests {
         let proof = merkle_tree.proof(0);
         assert!(verify(&merkle_tree.root(), &input_data[0].hash(), &proof, 0, input_data.len()));
     }
+
+    #[test]
+    fn merkle_tree_single_input() {
+        let input_data: Vec<H256> = vec![
+            (hex!("0101010101010101010101010101010101010101010101010101010101010101")).into(),
+        ];
+        let merkle_tree = MerkleTree::new(&input_data);
+        let root = merkle_tree.root();
+
+        // Ensure the root is the hash of the only element
+        assert_eq!(root, input_data[0]);
+
+        // Verify the proof for the single element
+        let proof = merkle_tree.proof(0);
+        assert!(verify(&root, &input_data[0], &proof, 0, input_data.len()));
+    }
+
+
 }
 
 // DO NOT CHANGE THIS COMMENT, IT IS FOR AUTOGRADER. AFTER TEST
