@@ -1,8 +1,6 @@
 use super::hash::{Hashable, H256};
 use sha2::{Sha256, Digest};
 use std::convert::TryFrom; // for helper function
-use std::num::NonZeroUsize; // verify()
-
 
 /// A Merkle tree.
 #[derive(Debug, Default)]
