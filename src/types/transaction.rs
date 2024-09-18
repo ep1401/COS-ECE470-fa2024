@@ -18,24 +18,6 @@ pub struct SignedTransaction {
     pub public_key: Vec<u8>,
 }
 
-// Is this impl actually needed? 
-impl SignedTransaction {
-    /// Creates a SignedTransaction from a transaction and a key pair
-    pub fn new(transaction: Transaction, signature: &Signature, key_pair: &Ed25519KeyPair) -> Self {
-        // Convert signature to a vector of bytes
-        let signature_vector: Vec<u8> = signature.as_ref().to_vec();
-        
-        // Convert the public key to a vector of bytes
-        let public_key_vector: Vec<u8> = key_pair.public_key().as_ref().to_vec();
-
-        SignedTransaction {
-            transaction,
-            signature: signature_vector,
-            public_key: public_key_vector,
-        }
-    }
-}
-
 /// Create digital signature of a transaction
 pub fn sign(t: &Transaction, key: &Ed25519KeyPair) -> Signature {
     let serialized_transaction = bincode::serialize(t).expect("Failed to serialize transaction");
