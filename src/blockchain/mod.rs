@@ -72,6 +72,115 @@ mod tests {
         assert_eq!(blockchain.tip(), block.hash());
 
     }
+
+    #[test]
+    fn insert_multiple_blocks() {
+        let mut blockchain = Blockchain::new();
+        let genesis_hash = blockchain.tip();
+
+        // Insert 50 blocks sequentially
+        let mut previous_hash = genesis_hash;
+        for _ in 0..50 {
+            let block = generate_random_block(&previous_hash);
+            blockchain.insert(&block);
+            previous_hash = block.hash();
+        }
+
+        // Check if the tip is correct (last inserted block)
+        assert_eq!(blockchain.tip(), previous_hash);
+
+        // Verify that the longest chain has 51 blocks (genesis + 50 blocks)
+        let chain = blockchain.all_blocks_in_longest_chain();
+        assert_eq!(chain.len(), 51);
+    }
+
+    #[test]
+    fn branching_scenario() {
+        let mut blockchain = Blockchain::new();
+        let genesis_hash = blockchain.tip();
+
+        // Insert 5 blocks sequentially on the main chain
+        let mut previous_hash = genesis_hash;
+        for _ in 0..5 {
+            let block = generate_random_block(&previous_hash);
+            blockchain.insert(&block);
+            previous_hash = block.hash();
+        }
+
+        // Create a fork: Add 3 blocks to a block earlier in the chain
+        let fork_block_hash = blockchain.all_blocks_in_longest_chain()[3]; // Fork at the 3rd block
+        let mut fork_hash = fork_block_hash;
+        for _ in 0..3 {
+            let fork_block = generate_random_block(&fork_hash);
+            blockchain.insert(&fork_block);
+            fork_hash = fork_block.hash();
+        }
+
+        // Add 2 more blocks to the main chain (making it longer than the fork)
+        for _ in 0..2 {
+            let block = generate_random_block(&previous_hash);
+            blockchain.insert(&block);
+            previous_hash = block.hash();
+        }
+
+        // The tip should point to the main chain, as it is now the longest chain
+        assert_eq!(blockchain.tip(), previous_hash);
+
+        // Check that the longest chain has 8 blocks (5 from the main chain + 2 additional)
+        let chain = blockchain.all_blocks_in_longest_chain();
+        assert_eq!(chain.len(), 8);
+    }
+
+    #[test]
+    fn verify_longest_chain_order() {
+        let mut blockchain = Blockchain::new();
+        let genesis_hash = blockchain.tip();
+
+        // Insert 10 blocks sequentially
+        let mut previous_hash = genesis_hash;
+        let mut inserted_hashes = vec![genesis_hash];
+        for _ in 0..10 {
+            let block = generate_random_block(&previous_hash);
+            blockchain.insert(&block);
+            previous_hash = block.hash();
+            inserted_hashes.push(previous_hash);
+        }
+
+        // Verify that all blocks' hashes in the longest chain match the inserted order
+        let chain = blockchain.all_blocks_in_longest_chain();
+        assert_eq!(chain, inserted_hashes);
+    }
+
+    #[test]
+    fn fork_with_equal_length() {
+        let mut blockchain = Blockchain::new();
+        let genesis_hash = blockchain.tip();
+
+        // Insert 5 blocks sequentially on the main chain
+        let mut previous_hash = genesis_hash;
+        for _ in 0..5 {
+            let block = generate_random_block(&previous_hash);
+            blockchain.insert(&block);
+            previous_hash = block.hash();
+        }
+
+        // Create a fork from the 3rd block and add 2 blocks to the fork
+        let fork_block_hash = blockchain.all_blocks_in_longest_chain()[3]; // Fork at the 3rd block
+        let mut fork_hash = fork_block_hash;
+        for _ in 0..2 {
+            let fork_block = generate_random_block(&fork_hash);
+            blockchain.insert(&fork_block);
+            fork_hash = fork_block.hash();
+        }
+
+        // Both chains have the same length (5 blocks). The blockchain should still function.
+        assert!(blockchain.tip() == previous_hash || blockchain.tip() == fork_hash);
+
+        // The longest chain should have 6 blocks (including the genesis block)
+        let chain = blockchain.all_blocks_in_longest_chain();
+        assert_eq!(chain.len(), 6);
+    }
+
 }
 
 // DO NOT CHANGE THIS COMMENT, IT IS FOR AUTOGRADER. AFTER TEST
