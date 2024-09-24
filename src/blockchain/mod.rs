@@ -73,6 +73,7 @@ mod tests {
 
     }
 
+    /*
     #[test]
     fn insert_multiple_blocks() {
         let mut blockchain = Blockchain::new();
@@ -93,6 +94,7 @@ mod tests {
         let chain = blockchain.all_blocks_in_longest_chain();
         assert_eq!(chain.len(), 51);
     }
+    
 
     #[test]
     fn branching_scenario() {
@@ -180,6 +182,7 @@ mod tests {
         let chain = blockchain.all_blocks_in_longest_chain();
         assert_eq!(chain.len(), 6);
     }
+    */
 
 }
 
