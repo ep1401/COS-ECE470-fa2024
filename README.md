@@ -23,3 +23,6 @@ You need to run the project on your machines. **We strongly recommend Linux or M
   
 ## Policy
 Unless special permission is granted, submissions later than due date will get 0 points.
+
+## Acknowledgements
+ChatGPT was used in the completion of this project as code aid (e.g. Rust syntax, bitcoin concepts, etc.) 
