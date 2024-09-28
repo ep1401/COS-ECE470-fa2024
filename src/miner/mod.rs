@@ -1,13 +1,20 @@
+use crate::types::block::{Block, Header, Content};
+use crate::types::hash::H256;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use std::time::{SystemTime, UNIX_EPOCH};
+use rand::Rng;
+use log::info;
+use crate::blockchain::Blockchain;
+use crate::types::hash::Hashable;
+use crate::types::merkle::MerkleTree;
+use crate::types::transaction::SignedTransaction;
+
 pub mod worker;
 
-use log::info;
-
 use crossbeam::channel::{unbounded, Receiver, Sender, TryRecvError};
-use std::time;
-
 use std::thread;
-
-use crate::types::block::Block;
+use std::time;
 
 enum ControlSignal {
     Start(u64), // the number controls the lambda of interval between block generation
@@ -26,6 +33,7 @@ pub struct Context {
     control_chan: Receiver<ControlSignal>,
     operating_state: OperatingState,
     finished_block_chan: Sender<Block>,
+    blockchain: Arc<Mutex<Blockchain>>,
 }
 
 #[derive(Clone)]
@@ -34,7 +42,7 @@ pub struct Handle {
     control_chan: Sender<ControlSignal>,
 }
 
-pub fn new() -> (Context, Handle, Receiver<Block>) {
+pub fn new(blockchain: Arc<Mutex<Blockchain>>) -> (Context, Handle, Receiver<Block>) {
     let (signal_chan_sender, signal_chan_receiver) = unbounded();
     let (finished_block_sender, finished_block_receiver) = unbounded();
 
@@ -42,6 +50,7 @@ pub fn new() -> (Context, Handle, Receiver<Block>) {
         control_chan: signal_chan_receiver,
         operating_state: OperatingState::Paused,
         finished_block_chan: finished_block_sender,
+        blockchain: Arc::clone(&blockchain),
     };
 
     let handle = Handle {
@@ -53,7 +62,8 @@ pub fn new() -> (Context, Handle, Receiver<Block>) {
 
 #[cfg(any(test,test_utilities))]
 fn test_new() -> (Context, Handle, Receiver<Block>) {
-    new()
+    let blockchain = Arc::new(Mutex::new(Blockchain::new()));
+    new(blockchain)
 }
 
 impl Handle {
@@ -134,6 +144,61 @@ impl Context {
 
             // TODO for student: actual mining, create a block
             // TODO for student: if block mining finished, you can have something like: self.finished_block_chan.send(block.clone()).expect("Send finished block error");
+            // Mining logic begins here
+            // Mining logic begins here
+            let (parent_, parent_block, difficulty_) = {
+                // Lock the blockchain and get the parent block information
+                let blockchain = self.blockchain.lock().unwrap();
+                let parent_ = blockchain.tip(); // Get the current tip of the blockchain
+                let parent_block = blockchain.blocks.get(&parent_).expect("Parent block not found");
+                let difficulty_ = parent_block.header.difficulty;
+                (parent_, parent_block.clone(), difficulty_)
+            };
+
+            let start = SystemTime::now();
+            let mut rng = rand::thread_rng();
+            let timestamp_ = start
+                .duration_since(UNIX_EPOCH)
+                .expect("Time went backwards")
+                .as_millis();
+
+            let transactions = Vec::<SignedTransaction>::new();  // Empty transactions for now
+            let merkle_tree_ = MerkleTree::new(&transactions);
+
+            // Mining loop: try different nonces
+            loop {
+                let nonce_ = rng.gen::<u32>();  // Generate new nonce
+                let header_ = Header {
+                    parent: parent_,
+                    nonce: nonce_,
+                    difficulty: difficulty_,
+                    timestamp: timestamp_,
+                    merkle_root: merkle_tree_.root(),
+                };
+                let block = Block {
+                    header: header_,
+                    content: Content {
+                        transactions: transactions.clone(),
+                    },
+                };
+
+                // Check if the block satisfies the proof-of-work condition
+                if block.hash() <= difficulty_ {
+                    // Insert the mined block into the blockchain
+                    {
+                        let mut blockchain = self.blockchain.lock().unwrap();
+                        blockchain.insert(&block);
+                    }
+
+                    // Send the block to the finished_block_chan
+                    self.finished_block_chan
+                        .send(block.clone())
+                        .expect("Send finished block error");
+
+                    break;  // Block mined, break out of loop to mine the next block
+                }
+            }
+
 
             if let OperatingState::Run(i) = self.operating_state {
                 if i != 0 {
@@ -165,6 +230,22 @@ mod test {
             block_prev = block_next;
         }
     }
+
+    
+    /*
+    #[timeout(60000)]
+    fn miner_ten_block() {
+        let (miner_ctx, miner_handle, finished_block_chan) = super::test_new();
+        miner_ctx.start();
+        miner_handle.start(0);
+        let mut block_prev = finished_block_chan.recv().unwrap();
+        for _ in 0..9 {
+            let block_next = finished_block_chan.recv().unwrap();
+            assert_eq!(block_prev.hash(), block_next.get_parent());
+            block_prev = block_next;
+        }
+    }
+    */
 }
 
 // DO NOT CHANGE THIS COMMENT, IT IS FOR AUTOGRADER. AFTER TEST

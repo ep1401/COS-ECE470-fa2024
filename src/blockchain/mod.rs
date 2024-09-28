@@ -1,26 +1,46 @@
-use crate::types::block::{Block, generate_random_block};
+use crate::types::block::{Block, Header, Content};
 use crate::types::hash::H256;
 use crate::types::hash::Hashable;
 use std::collections::HashMap;
 
 pub struct Blockchain {
-    blocks: HashMap<H256, Block>,
-    tip: H256,  // The hash of the block at the tip of the longest chain
+    pub blocks: HashMap<H256, Block>,
+    pub tip: H256,  // The hash of the block at the tip of the longest chain
 }
 
 impl Blockchain {
     /// Create a new blockchain, only containing the genesis block
     pub fn new() -> Self {
-        // Create a genesis block
-        let genesis_block = generate_random_block(&H256::from([0x00; 32]));
+        // Set fixed values for the genesis block header
+        let genesis_header = Header {
+            parent: H256::from([0x00; 32]),  // No parent for the genesis block, so all zeros
+            nonce: 0,                        // Set nonce to 0 for the genesis block
+            difficulty: [255u8; 32].into(),  // Highest difficulty
+            timestamp: 0,                    // A fixed timestamp for the genesis block
+            merkle_root: H256::from([0x00; 32]), // Example merkle root for no transactions
+        };
+
+        // Genesis block has no transactions (empty content)
+        let genesis_content = Content {
+            transactions: vec![],  // Empty content for genesis block
+        };
+
+        // Create the genesis block with the fixed header and empty content
+        let genesis_block = Block {
+            header: genesis_header,
+            content: genesis_content,
+        };
+
+        // Hash the genesis block
         let genesis_hash = genesis_block.hash();
 
+        // Initialize the blockchain with the genesis block
         let mut blocks = HashMap::new();
         blocks.insert(genesis_hash, genesis_block);
 
         Self {
             blocks,
-            tip: genesis_hash,
+            tip: genesis_hash,  // The tip is the genesis block initially
         }
     }
 

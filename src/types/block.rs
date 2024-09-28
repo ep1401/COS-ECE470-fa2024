@@ -1,8 +1,10 @@
 use serde::{Serialize, Deserialize};
 use crate::types::hash::{H256, Hashable};
-use crate::types::transaction::SignedTransaction;  // Assuming SignedTransaction is defined in transaction module
+use crate::types::transaction::SignedTransaction;  
 use std::time::{SystemTime, UNIX_EPOCH};
 use sha2::{Sha256, Digest};
+use rand::Rng;
+use crate::types::merkle::MerkleTree;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Header {
@@ -50,22 +52,26 @@ impl Block {
 pub fn generate_random_block(parent: &H256) -> Block {
     let nonce: u32 = rand::random();
     let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
-    let difficulty = H256::from([0xff; 32]);  // Placeholder value for difficulty
-
-    // Merkle root for empty content
-    let merkle_root = H256::from([0x00; 32]);
+    let mut rng = rand::thread_rng();
+    let difficulty = H256::from(rng.gen::<[u8; 32]>());
+    let merkle_tree_ = MerkleTree::new(&Vec::<SignedTransaction>::new());
 
     let header = Header {
         parent: *parent,
-        nonce,
-        difficulty,
-        timestamp,
-        merkle_root,
+        nonce: nonce,
+        difficulty: difficulty,
+        timestamp: timestamp,
+        merkle_root: merkle_tree_.root(),
     };
 
     let content = Content {
-        transactions: vec![],  // Empty content for now
+        transactions: Vec::<SignedTransaction>::new(),  
     };
 
-    Block { header, content }
+    let new_block = Block {
+        header: header,
+        content: content
+    };
+
+    return new_block;
 }
