@@ -26,7 +26,8 @@ pub struct Block {
     pub content: Content,
 }
 
-impl Hashable for Block {
+// Implement Hashable for Header
+impl Hashable for Header {
     fn hash(&self) -> H256 {
         // Serialize the header and hash it using sha2's Sha256
         let serialized = bincode::serialize(self).unwrap();
@@ -35,6 +36,13 @@ impl Hashable for Block {
         let result = hasher.finalize();  // Finalize and get the hash result
         let hash: [u8; 32] = result.into();  // Convert the result into an array of bytes
         hash.into()  // Convert the byte array into H256
+    }
+}
+
+impl Hashable for Block {
+    fn hash(&self) -> H256 {
+        // Instead of hashing the whole block, we hash the header
+        self.header.hash()
     }
 }
 
