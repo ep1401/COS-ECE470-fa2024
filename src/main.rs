@@ -78,6 +78,7 @@ fn main() {
         p2p_workers,
         msg_rx,
         &server,
+        Arc::clone(&blockchain) // Pass blockchain to worker
     );
     worker_ctx.start();
 
