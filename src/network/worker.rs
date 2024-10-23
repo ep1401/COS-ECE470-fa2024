@@ -21,6 +21,19 @@ pub struct Worker {
     blockchain: Arc<Mutex<Blockchain>>, // Add thread-safe blockchain field
 }
 
+pub struct OrphanBuffer {
+    pub orphans: Vec<Block>
+ }
+ 
+ 
+ impl OrphanBuffer {
+    pub fn new() -> Self {
+        return Self {
+            orphans: Vec::<Block>::new()
+        }
+    }
+ }
+ 
 
 impl Worker {
     pub fn new(
@@ -93,19 +106,75 @@ impl Worker {
                     }
                 }
                 Message::Blocks(blocks) => {
-                    // Handle Blocks message
-                    let mut blockchain = self.blockchain.lock().unwrap(); // Access the blockchain
+                    println!("Received blocks message");
+                    let mut blockchain = self.blockchain.lock().unwrap();
                     let mut new_block_hashes: Vec<H256> = Vec::new();
-                    for block in blocks {
-                        if !blockchain.blocks.contains_key(&block.hash()) {  // Check if block already exists
-                            blockchain.insert(&block);  // Insert new block into the blockchain
-                            new_block_hashes.push(block.hash());
+                    let mut parent_blocks: Vec<H256> = Vec::new();
+                    let mut process_blocks: Vec<Block> = Vec::new();
+                    let mut orphan_buffer = OrphanBuffer::new(); // Buffer to hold orphan blocks
+               
+                    // Process the received blocks
+                    'block_loop: for block in blocks {
+                        if !blockchain.blocks.contains_key(&block.hash()) {
+                            // Check if the block satisfies the Proof of Work requirement
+                            if block.hash() > [255u8; 32].into() {
+                                continue; // Skip if PoW fails
+                            }
+               
+                            // Parent check: If parent block exists, insert the block
+                            let parent_hash = block.get_parent();
+                            if blockchain.blocks.contains_key(&parent_hash) {
+                                debug!("Inserting new block: {}", block.hash());
+                                blockchain.insert(&block);
+                                new_block_hashes.push(block.hash());
+                                process_blocks.push(block.clone());
+                            } else {
+                                // If the parent is missing, add the block to the orphan buffer
+                                debug!("Orphan block: {}", block.hash());
+                                orphan_buffer.orphans.push(block.clone());
+                                parent_blocks.push(parent_hash.clone());
+                            }
                         }
                     }
+               
+                    // Process orphan blocks
+                    let mut keep_orphans = Vec::<Block>::new(); // Buffer to keep orphans not processed in this round
+               
+                    while !process_blocks.is_empty() {
+                        let block = process_blocks.pop().unwrap(); // Get the next block to process
+               
+                        // Check if any orphan has this block as its parent
+                        for orphan in orphan_buffer.orphans.clone() {
+                            if orphan.get_parent() == block.hash() {
+                                debug!("Processing orphan block: {}", orphan.hash());
+                                blockchain.insert(&orphan);
+                                new_block_hashes.push(orphan.hash());
+                                process_blocks.push(orphan.clone());
+                            } else {
+                                // Keep orphan if its parent isn't found yet
+                                keep_orphans.push(orphan);
+                            }
+                        }
+               
+                        // Update orphan buffer with remaining orphans
+                        orphan_buffer.orphans = keep_orphans.clone();
+                        keep_orphans.clear(); // Reset the buffer for the next iteration
+                    }
+               
+                    // If there are missing parents, request them
+                    if !parent_blocks.is_empty() {
+                        debug!("Requesting missing parent blocks: {:?}", parent_blocks);
+                        peer.write(Message::GetBlocks(parent_blocks));
+                    }
+               
+                    // If new blocks were added, broadcast their hashes
                     if !new_block_hashes.is_empty() {
+                        debug!("Broadcasting new block hashes: {:?}", new_block_hashes);
                         self.server.broadcast(Message::NewBlockHashes(new_block_hashes));
                     }
                 }
+ 
+
                 _ => unimplemented!(),
             }
         }
@@ -180,6 +249,7 @@ mod test {
             panic!();
         }
     }
+
     #[test]
     #[timeout(60000)]
     fn reply_get_blocks() {
@@ -194,6 +264,7 @@ mod test {
             panic!();
         }
     }
+
     #[test]
     #[timeout(60000)]
     fn reply_blocks() {
@@ -207,6 +278,7 @@ mod test {
             panic!();
         }
     }
+
 }
 
 // DO NOT CHANGE THIS COMMENT, IT IS FOR AUTOGRADER. AFTER TEST
