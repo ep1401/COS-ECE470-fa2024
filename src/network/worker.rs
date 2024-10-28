@@ -106,7 +106,7 @@ impl Worker {
                     }
                 }
                 Message::Blocks(blocks) => {
-                    println!("Received blocks message");
+                    // println!("Received blocks message");
                     let mut blockchain = self.blockchain.lock().unwrap();
                     let mut new_block_hashes: Vec<H256> = Vec::new();
                     let mut parent_blocks: Vec<H256> = Vec::new();

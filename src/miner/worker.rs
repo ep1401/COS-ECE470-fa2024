@@ -41,7 +41,7 @@ impl Worker {
 
     fn worker_loop(&self) {
         loop {
-            let _block = self.finished_block_chan.recv().expect("Receive finished block error");
+            // let _block = self.finished_block_chan.recv().expect("Receive finished block error");
             // TODO for student: insert this finished block to blockchain, and broadcast this block hash
             // Insert the block into the blockchain
             let _block = self.finished_block_chan.recv().expect("Receive finished block error");
