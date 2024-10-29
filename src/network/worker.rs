@@ -3,8 +3,10 @@ use super::peer;
 use super::server::Handle as ServerHandle;
 use crate::types::hash::{H256, Hashable};
 use crate::types::block::Block;
-use crate::blockchain::Blockchain;
+use crate::blockchain::{Blockchain, DIFFICULTY};
 use log::{debug, warn, error, info};
+
+
 
 use std::sync::{Arc, Mutex}; // For thread-safe access to blockchain
 use std::thread; // For spawning worker threads
@@ -117,7 +119,7 @@ impl Worker {
                     'block_loop: for block in blocks {
                         if !blockchain.blocks.contains_key(&block.hash()) {
                             // Check if the block satisfies the Proof of Work requirement
-                            if block.hash() > [255u8; 32].into() {
+                            if !(block.hash() <= DIFFICULTY.into()) {
                                 continue; // Skip if PoW fails
                             }
                

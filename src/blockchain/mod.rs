@@ -3,6 +3,9 @@ use crate::types::hash::H256;
 use crate::types::hash::Hashable;
 use std::collections::HashMap;
 
+pub static DIFFICULTY: [u8; 32] = [0, 0, 30, 50, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10];
+
+
 pub struct Blockchain {
     pub blocks: HashMap<H256, Block>,
     pub tip: H256,  // The hash of the block at the tip of the longest chain
@@ -16,7 +19,7 @@ impl Blockchain {
         let genesis_header = Header {
             parent: H256::from([0x00; 32]),  // No parent for the genesis block, so all zeros
             nonce: 0,                        // Set nonce to 0 for the genesis block
-            difficulty: [255u8; 32].into(),  // Highest difficulty
+            difficulty: DIFFICULTY.into(),  // Highest difficulty
             timestamp: 0,                    // A fixed timestamp for the genesis block
             merkle_root: H256::from([0x00; 32]), // Example merkle root for no transactions
         };
