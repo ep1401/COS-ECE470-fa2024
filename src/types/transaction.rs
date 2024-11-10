@@ -6,11 +6,14 @@ use ring::signature::{Ed25519KeyPair, Signature, UnparsedPublicKey, KeyPair, ED2
 use rand::Rng;
 use bincode;
 
+use std::collections::HashMap;
+
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Transaction {
     pub sender: Address,
     pub receiver: Address,
-    pub value: u64,
+    pub value: u32,
+    pub account_nonce: u32,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
@@ -24,6 +27,24 @@ impl Hashable for SignedTransaction {
     fn hash(&self) -> H256 {
         let serialized = bincode::serialize(self).unwrap();
         ring::digest::digest(&ring::digest::SHA256, &serialized).into()
+    }
+}
+
+pub struct ICO {
+    //account address -> (account nonce, account balance)
+    pub state: HashMap<Address, (u32, u32)>
+}
+
+impl ICO {
+    pub fn new(pubkey: &[u8]) -> Self {
+        //Do Initial Coin Offering (ICO); hardcode an account using the given pubkey
+        let account_address = Address::from_public_key_bytes(pubkey);
+        let balance = 1000000;
+        let mut map = HashMap::new();
+        map.insert(account_address, (0, balance));
+        return ICO {
+            state: map
+        }
     }
 }
 
@@ -59,6 +80,7 @@ pub fn generate_random_transaction() -> Transaction {
         sender,
         receiver,
         value,
+        account_nonce:0,
     }
 }
 

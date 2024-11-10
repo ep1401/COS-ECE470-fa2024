@@ -7,3 +7,8 @@ pub fn random() -> Ed25519KeyPair {
     let pkcs8_bytes = Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
     Ed25519KeyPair::from_pkcs8(pkcs8_bytes.as_ref().into()).unwrap()
 }
+
+pub fn given(seed: &[u8]) -> Ed25519KeyPair {
+    let pair = Ed25519KeyPair::from_seed_unchecked(seed);
+    return pair.unwrap();
+}

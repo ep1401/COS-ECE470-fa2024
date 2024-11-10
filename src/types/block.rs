@@ -6,6 +6,22 @@ use sha2::{Sha256, Digest};
 use rand::Rng;
 use crate::types::merkle::MerkleTree;
 
+use std::collections::HashMap;
+use crate::types::address::Address;
+
+pub struct BlockState {
+    //block hash -> block state (account address -> (account nonce, account balance))
+    pub block_state_map: HashMap<H256, HashMap<Address, (u32, u32)>>
+}
+
+impl BlockState {
+    pub fn new() -> Self {
+        return BlockState {
+            block_state_map: HashMap::<H256, HashMap<Address, (u32, u32)>>::new()
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Header {
     pub parent: H256,
