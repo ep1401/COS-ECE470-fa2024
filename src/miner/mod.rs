@@ -53,6 +53,7 @@ impl Mempool {
         }
         self.transaction_map.insert(transaction.hash(), transaction.clone());
         self.transaction_set.insert(transaction.hash());
+        println!("Mempool - Inserting transaction: {:?}", transaction.hash());
     }
 
     pub fn remove(&mut self, transaction_hash: &H256) {
@@ -135,9 +136,8 @@ impl Context {
     }
 
     fn miner_loop(&mut self) {
-        // main mining loop
         loop {
-            // check and react to control signals
+            // Check and handle control signals
             match self.operating_state {
                 OperatingState::Paused => {
                     let signal = self.control_chan.recv().unwrap();
@@ -147,138 +147,115 @@ impl Context {
                             self.operating_state = OperatingState::ShutDown;
                         }
                         ControlSignal::Start(i) => {
-                            info!("Miner starting in continuous mode with lambda {}", i);
+                            info!("Miner starting with lambda {}", i);
                             self.operating_state = OperatingState::Run(i);
                         }
                         ControlSignal::Update => {
-                            // in paused state, don't need to update
+                            // No action needed in paused state
                         }
                     };
                     continue;
                 }
-                OperatingState::ShutDown => {
-                    return;
-                }
+                OperatingState::ShutDown => return,
                 _ => match self.control_chan.try_recv() {
-                    Ok(signal) => {
-                        match signal {
-                            ControlSignal::Exit => {
-                                info!("Miner shutting down");
-                                self.operating_state = OperatingState::ShutDown;
-                            }
-                            ControlSignal::Start(i) => {
-                                info!("Miner starting in continuous mode with lambda {}", i);
-                                self.operating_state = OperatingState::Run(i);
-                            }
-                            ControlSignal::Update => {
-                                unimplemented!()
-                            }
-                        };
-                    }
+                    Ok(signal) => match signal {
+                        ControlSignal::Exit => {
+                            info!("Miner shutting down");
+                            self.operating_state = OperatingState::ShutDown;
+                        }
+                        ControlSignal::Start(i) => {
+                            info!("Miner starting with lambda {}", i);
+                            self.operating_state = OperatingState::Run(i);
+                        }
+                        ControlSignal::Update => {
+                            // No update logic yet
+                            println!("Miner received update signal, pausing to update state");
+                            continue;
+                        }
+                    },
                     Err(TryRecvError::Empty) => {}
                     Err(TryRecvError::Disconnected) => panic!("Miner control channel detached"),
                 },
             }
+    
             if let OperatingState::ShutDown = self.operating_state {
                 return;
             }
-            let parent_ = self.blockchain.lock().unwrap().tip();
+    
+            // Get the current blockchain tip
+            let parent = self.blockchain.lock().unwrap().tip();
             let start = SystemTime::now();
             let mut rng = rand::thread_rng();
-            let timestamp_ = start.duration_since(UNIX_EPOCH).expect("Time went backwards").as_millis();
-            let difficulty_: H256 = DIFFICULTY.into();
-            let mut tip_state = self.block_state_map.lock().unwrap().block_state_map.get(&parent_).unwrap().clone();
-            /////////Transaction Logic - add transactions from mempool to block/////////
+            let timestamp = start
+                .duration_since(UNIX_EPOCH)
+                .expect("Time went backwards")
+                .as_millis();
+            let difficulty: H256 = DIFFICULTY.into();
+    
+            // Clone the transaction map from the mempool to avoid holding the lock for long
+            let transaction_map;
+            {
+                let mempool = self.mempool.lock().unwrap();
+                transaction_map = mempool.transaction_map.clone();
+            }
+    
+            // Collect transactions up to the block size limit
             let mut transactions = Vec::<SignedTransaction>::new();
-            let mut mempool = self.mempool.lock().unwrap();
-            let block_limit = 4000;
+            // let block_limit = 10000;
+            let block_limit = 60000;
             let mut current_size = 0;
-            let mut bytes: Vec<u8>;
-            for (_, tx) in mempool.transaction_map.clone().iter() {
-                bytes = bincode::serialize(&tx).unwrap();
+    
+            for (_, tx) in transaction_map.iter() {
+                let bytes = bincode::serialize(&tx).unwrap();
                 if current_size + bytes.len() > block_limit {
                     break;
                 }
-                /////////State checks///////////
-                let transaction = &tx.transaction;
-                let sender_state;
-                if tip_state.contains_key(&transaction.sender) {
-                    sender_state = tip_state.get(&transaction.sender).unwrap().clone();
-                } else {
-                    sender_state = (0, 0);
-                }
-                if (transaction.value > sender_state.1) || (transaction.account_nonce != sender_state.0 + 1) {
-                    //remove Txs with nonce lower than current, otherwise keep (out-of-order Txs, etc.)
-                    if transaction.account_nonce <= sender_state.0 {
-                        println!("Sender balance: {:?}", sender_state.1);
-                        println!("Sender state: {:?}", sender_state.0);
-                        println!("Account nonce: {:?}", transaction.account_nonce);
-                        println!("Transaction with lower nonce than current state, removing from mempool");
+                current_size += bytes.len();
+                transactions.push(tx.clone());
+            }
+
+            // println!("Miner - Total transactions added to block: {}", transactions.len());
+    
+            // Construct the block
+            let merkle_tree = MerkleTree::new(&transactions);
+            let nonce = rng.gen::<u32>();
+            let header = Header {
+                parent,
+                nonce,
+                difficulty,
+                timestamp,
+                merkle_root: merkle_tree.root(),
+            };
+            let content = Content { transactions };
+            let block = Block { header, content };
+    
+            // Check if the block meets the difficulty target
+            if block.hash() <= difficulty {
+                // Remove included transactions from the mempool
+                {
+                    let mut mempool = self.mempool.lock().expect("Failed to lock mempool");
+                    for tx in &block.content.transactions {
                         mempool.remove(&tx.hash());
                     }
-                    continue;
                 }
-                //at this point the transaction is valid so update local state copy
-                tip_state.insert(transaction.sender, (sender_state.0 + 1, sender_state.1 - &transaction.value));
-                let receiver_state;
-                if tip_state.contains_key(&transaction.receiver) {
-                    receiver_state = tip_state.get(&transaction.receiver).unwrap().clone();
-                } else {
-                    receiver_state = (0, 0);
-                }
-                tip_state.insert(transaction.receiver, (receiver_state.0, receiver_state.1 + &transaction.value));
-                ////////////////////////////////
-                current_size += bytes.len();
-                let x = &*tx;
-                transactions.push(x.clone());
+    
+                // Send the finished block
+                self.finished_block_chan
+                    .send(block.clone())
+                    .expect("Failed to send finished block");
             }
-            ////////////////////////////////////////////////////////////////////////////
-
-            let merkle_tree_ = MerkleTree::new(&transactions);
-            let nonce_ = rng.gen::<u32>();
-            let header_ = Header {
-                parent: parent_,
-                nonce: nonce_,
-                difficulty: difficulty_,
-                timestamp: timestamp_,
-                merkle_root: merkle_tree_.root()
-            };
-            let content_ = Content {
-                transactions: transactions
-            };
-            let block = Block {
-                header: header_,
-                content: content_
-            };
-            if block.hash() <= difficulty_ {
-                //Remove transactions from mempool
-                for tx in block.content.transactions.clone() {
-                    mempool.remove(&tx.hash());
-                }
-                //add block to block state
-                self.block_state_map.lock().unwrap().block_state_map.insert(block.hash(), tip_state.clone());
-                //Remove invalid transactions after state update
-                for (_, tx) in mempool.transaction_map.clone().iter() {
-                    let sender = tx.transaction.sender;
-                    let sender_state = tip_state.get(&sender).unwrap().clone();
-                    if (tx.transaction.value > sender_state.1) || (tx.transaction.account_nonce != sender_state.0 + 1) {
-                        if tx.transaction.account_nonce <= sender_state.0 {
-                            mempool.remove(&tx.hash());
-                        }
-                    }
-                }
-                self.finished_block_chan.send(block.clone()).expect("Send finished block error");
-            }
-
-            if let OperatingState::Run(i) = self.operating_state {
-                if i != 0 {
-                    let interval = time::Duration::from_micros(i as u64);
-                    thread::sleep(interval);
+    
+            // Control the mining interval based on the lambda value
+            if let OperatingState::Run(lambda) = self.operating_state {
+                if lambda != 0 {
+                    thread::sleep(time::Duration::from_micros(lambda));
                 }
             }
         }
     }
+
 }
+    
 
 // DO NOT CHANGE THIS COMMENT, IT IS FOR AUTOGRADER. BEFORE TEST
 

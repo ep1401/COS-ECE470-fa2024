@@ -164,32 +164,7 @@ impl Worker {
                             //Parent Check/Orphan Block Check
                             let parent_hash = block.get_parent();
                             if blockchain.blocks.contains_key(&parent_hash) {
-                                //////////TRANSACTION Checks//////////////////////
-                                // here check balance and nonce
-                                let mut parent_state = self.block_state_map.lock().unwrap().block_state_map.get(&parent_hash).unwrap().clone();
-                                for tx in &block.content.transactions {
-                                    let sender = tx.transaction.sender;
-                                    let sender_state;
-                                    if parent_state.contains_key(&sender) {
-                                        sender_state = parent_state.get(&sender).unwrap().clone();
-                                    } else {
-                                        sender_state = (0, 0);
-                                    }
-                                    if (tx.transaction.value > sender_state.1) || (tx.transaction.account_nonce != sender_state.0 + 1) {
-                                        continue 'block;
-                                    }
-                                    //at this point the transaction is valid so update local state copy
-                                    parent_state.insert(tx.transaction.sender, (sender_state.0 + 1, sender_state.1 - &tx.transaction.value));
-                                    let receiver_state;
-                                    if parent_state.contains_key(&tx.transaction.receiver) {
-                                        receiver_state = parent_state.get(&tx.transaction.receiver).unwrap().clone();
-                                    } else {
-                                        receiver_state = (0, 0);
-                                    }
-                                    parent_state.insert(tx.transaction.receiver, (receiver_state.0, receiver_state.1 + &tx.transaction.value));
-                                }
-                                //////////////////////////////////////////////////
-                                self.block_state_map.lock().unwrap().block_state_map.insert(block.hash(), parent_state);
+                                
                                 blockchain.insert(&block);
                                 let mut mempool = self.mempool.lock().unwrap();
                                 for tx in &block.content.transactions.clone() {
@@ -210,32 +185,7 @@ impl Worker {
                                 for orphan in orphan_buffer.orphans.clone() {
                                     //block is parent, don't keep orphan
                                     if orphan.get_parent() == block.hash() {
-                                        //////////TRANSACTION Checks//////////////////////
-                                        // here check balance and nonce
-                                        let mut parent_state = self.block_state_map.lock().unwrap().block_state_map.get(&block.hash()).unwrap().clone();
-                                        for tx in &orphan.content.transactions {
-                                            let sender = tx.transaction.sender;
-                                            let sender_state;
-                                            if parent_state.contains_key(&sender) {
-                                                sender_state = parent_state.get(&sender).unwrap().clone();
-                                            } else {
-                                                sender_state = (0, 0);
-                                            }
-                                            if (tx.transaction.value > sender_state.1) || (tx.transaction.account_nonce != sender_state.0 + 1) {
-                                                continue 'block;
-                                            }
-                                            //at this point the transaction is valid so update local state copy
-                                            parent_state.insert(tx.transaction.sender, (sender_state.0 + 1, sender_state.1 - &tx.transaction.value));
-                                            let receiver_state;
-                                            if parent_state.contains_key(&tx.transaction.receiver) {
-                                                receiver_state = parent_state.get(&tx.transaction.receiver).unwrap().clone();
-                                            } else {
-                                                receiver_state = (0, 0);
-                                            }
-                                            parent_state.insert(tx.transaction.receiver, (receiver_state.0, receiver_state.1 + &tx.transaction.value));
-                                        }
-                                        //////////////////////////////////////////////////
-                                        self.block_state_map.lock().unwrap().block_state_map.insert(orphan.hash(), parent_state);
+                                        
                                         blockchain.insert(&orphan);
                                         let mut mempool = self.mempool.lock().unwrap();
                                         for tx in block.content.transactions.clone() {

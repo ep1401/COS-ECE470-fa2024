@@ -3,8 +3,8 @@ use crate::types::hash::H256;
 use crate::types::hash::Hashable;
 use std::collections::HashMap;
 
-pub static DIFFICULTY: [u8; 32] = [0, 0, 30, 50, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10];
-//pub static DIFFICULTY: [u8; 32] = [0, 3, 100, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
+//pub static DIFFICULTY: [u8; 32] = [0, 0, 30, 50, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10];
+pub static DIFFICULTY: [u8; 32] = [0, 1, 50, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
 
 pub struct Blockchain {
     pub blocks: HashMap<H256, Block>,
@@ -56,6 +56,13 @@ impl Blockchain {
     pub fn insert(&mut self, block: &Block) {
         let block_hash = block.hash();
         let parent_hash = block.get_parent();
+
+        println!(
+            "Blockchain - Inserting block: {:?}, parent: {:?}, transactions: {:?}",
+            block_hash,
+            parent_hash,
+            block.content.transactions.len()
+        );
 
         // Get the parent's height and increment it for the new block
         let parent_height = self.heights.get(&parent_hash).copied().unwrap_or(0);

@@ -41,19 +41,35 @@ impl Worker {
 
     fn worker_loop(&self) {
         loop {
-            // let _block = self.finished_block_chan.recv().expect("Receive finished block error");
-            // TODO for student: insert this finished block to blockchain, and broadcast this block hash
+            // Receive the mined block
+            let block = self.finished_block_chan.recv().expect("Receive finished block error");
+            let block_hash = block.hash();
+            let parent_hash = block.get_parent();
+    
+            // Lock the blockchain for thread-safe access
+            let mut blockchain = self.blockchain.lock().unwrap();
+    
+            // Check if the block's parent is still the tip
+            if blockchain.tip() != parent_hash {
+                println!("Skipping block {} because the tip has changed.", block_hash);
+                continue; // Skip insertion if the tip has already moved forward
+            }
+    
+            // Check if the block already exists in the blockchain
+            if blockchain.blocks.contains_key(&block_hash) {
+                println!("Block already exists: {}", block_hash);
+                continue; // Skip inserting if the block is already present
+            }
+    
             // Insert the block into the blockchain
-            let _block = self.finished_block_chan.recv().expect("Receive finished block error");
-            let mut blockchain_ = self.blockchain.lock().unwrap();
-            blockchain_.insert(&_block);
-            let mut block_to_send = Vec::<H256>::new();
-            block_to_send.push(_block.hash());
-            debug!("SENDING BLOCK: {}", _block.hash());
-            self.server.broadcast(Message::NewBlockHashes(block_to_send));
-
-            // TODO: Broadcast the block hash to the network (not required in this part)
-            // self.server.broadcast(block.hash());  // Placeholder for future network broadcasting
+            blockchain.insert(&block);
+            info!("Block inserted: {}", block_hash);
+    
+            // Notify all miners to update their tip
+            self.server.broadcast(Message::NewBlockHashes(vec![block_hash]));
+            self.server.update();
         }
     }
+    
+    
 }

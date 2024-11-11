@@ -71,89 +71,59 @@ impl TransactionGenerator {
 
 
    fn generate_transactions(&self, theta: u64) {
-       let mut receiver_index = 0;
-  
-       loop {
-           // Try to acquire lock on the blockchain without blocking
-           let tip = match self.blockchain.lock() {
-               Ok(blockchain) => blockchain.tip().clone(),
-               Err(_) => {
-                   log::error!("Failed to lock blockchain, retrying...");
-                   continue;
-               }
-           };
-  
-           // Try to acquire lock on the block state map
-           let tip_state = match self.block_state_map.lock() {
-               Ok(state_map) => state_map.block_state_map.get(&tip).cloned(),
-               Err(_) => {
-                   log::error!("Failed to lock block state map, retrying...");
-                   continue;
-               }
-           };
-  
-           if tip_state.is_none() {
-               log::warn!("Tip state not found, retrying...");
-               continue;
-           }
-           let tip_state = tip_state.unwrap();
-  
-           let receiver = self.receiver_addresses[receiver_index];
-           let sender_balance = tip_state.get(&self.address).unwrap_or(&(0, 0));
-  
-           if sender_balance.1 == 0 {
-               log::info!("Sender balance is zero, skipping transaction generation");
-               continue;
-           }
-  
-           let mut rng = rand::thread_rng();
-           let value = rng.gen_range(1..=(sender_balance.1 / 2).max(1));
-           let nonce = sender_balance.0 + 1;
-  
-           let tx = Transaction {
-               sender: self.address,
-               receiver,
-               value,
-               account_nonce: nonce,
-           };
-  
-           let signature = sign(&tx, &self.keypair);
-           let signed_tx = SignedTransaction {
-               transaction: tx,
-               signature: signature.as_ref().to_vec(),
-               public_key: self.keypair.public_key().as_ref().to_vec(),
-           };
-  
-           // Try to acquire lock on mempool without blocking
-           {
-               let mut mempool = match self.mempool.lock() {
-                   Ok(mempool) => mempool,
-                   Err(_) => {
-                       log::error!("Failed to lock mempool, retrying...");
-                       continue;
-                   }
-               };
-               mempool.insert(&signed_tx);
-           }
-  
-           // Broadcast the transaction
-           let tx_hash = signed_tx.hash();
-           self.server.broadcast(Message::NewTransactionHashes(vec![tx_hash]));
-  
-           println!("Generated and broadcasted transaction: {:?}", tx_hash);
-  
-           // Alternate between receiver addresses
-           receiver_index = 1 - receiver_index;
-  
-           // Sleep to control the rate of transaction generation
-           if theta != 0 {
-               let interval = time::Duration::from_millis(10 * theta);
-               thread::sleep(interval);
-           }
-       }
-   }
-  
+    let mut receiver_index = 0;
+    // let interval = time::Duration::from_millis(10 * theta);
+    let interval = time::Duration::from_millis((4.8_f64 * theta as f64) as u64);
+
+
+    loop {
+        // Get the current tip of the blockchain
+        let tip;
+        {
+            let blockchain = self.blockchain.lock().expect("Failed to lock blockchain");
+            tip = blockchain.tip().clone();
+        }
+
+        // Choose the receiver address
+        let receiver = self.receiver_addresses[receiver_index];
+
+        // For simplicity, assume the sender has sufficient balance
+        let mut rng = rand::thread_rng();
+        let value = rng.gen_range(1..=100); // Random transaction value between 1 and 100
+        let nonce = rng.gen_range(1..=1000); // Random nonce for testing
+
+        // Create a new transaction
+        let tx = Transaction {
+            sender: self.address,
+            receiver,
+            value,
+            account_nonce: nonce,
+        };
+
+        // Sign the transaction
+        let signature = sign(&tx, &self.keypair);
+        let signed_tx = SignedTransaction {
+            transaction: tx,
+            signature: signature.as_ref().to_vec(),
+            public_key: self.keypair.public_key().as_ref().to_vec(),
+        };
+
+        // Insert the transaction into the mempool
+        {
+            let mut mempool = self.mempool.lock().expect("Failed to lock mempool");
+            mempool.insert(&signed_tx);
+        }
+
+        // Broadcast the transaction
+        let tx_hash = signed_tx.hash();
+        self.server.broadcast(Message::NewTransactionHashes(vec![tx_hash]));
+        println!("TransactionGenerator - Broadcast transaction: {:?}", tx_hash);
+
+        // Alternate receiver address
+        receiver_index = 1 - receiver_index;
+
+        // Control the rate of transaction generation
+        thread::sleep(interval);
+    }
 }
-
-
-
+}

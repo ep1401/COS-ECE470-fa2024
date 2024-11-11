@@ -11,7 +11,10 @@ pub struct MerkleTree {
 }
 
 impl MerkleTree {
-    pub fn new<T>(data: &[T]) -> Self where T: Hashable {
+    pub fn new<T>(data: &[T]) -> Self
+    where
+        T: Hashable,
+    {
         // If the input data is empty, return an empty Merkle tree with a default root.
         if data.is_empty() {
             return MerkleTree {
@@ -32,17 +35,20 @@ impl MerkleTree {
             };
         }
 
-        if leaves.len() % 2 != 0 {
-            leaves.push(leaves[leaves.len() - 1]);
-        }
-
+        // Initialize the tree with the leaves
         let mut tree = vec![];
         tree.push(leaves.clone());
 
         // Build the tree layer by layer by hashing pairs of nodes.
         while leaves.len() > 1 {
+            // Pad the layer if it has an odd number of nodes
+            if leaves.len() % 2 != 0 {
+                leaves.push(leaves[leaves.len() - 1].clone());
+            }
+
             let mut next_layer = vec![];
             for chunk in leaves.chunks(2) {
+                // Ensure that the chunk always has two elements
                 let parent_hash = hash_two(&chunk[0], &chunk[1]);
                 next_layer.push(parent_hash);
             }
@@ -58,7 +64,6 @@ impl MerkleTree {
             tree,
         }
     }
-
     pub fn root(&self) -> H256 {
         self.root
     }
@@ -70,17 +75,23 @@ impl MerkleTree {
         }
         let mut proof = vec![];
         let mut idx = index;
-
+    
         // Traverse up the tree, collecting sibling hashes for the proof.
         for layer in &self.tree[..self.tree.len() - 1] {
             let sibling_idx = if idx % 2 == 0 { idx + 1 } else { idx - 1 };
+    
+            // Check if the sibling index is within bounds
             if sibling_idx < layer.len() {
                 proof.push(layer[sibling_idx]);
+            } else {
+                // If the index is out of bounds, use the current node's hash (due to padding)
+                proof.push(layer[idx]);
             }
             idx /= 2;
         }
         proof
     }
+    
 }
 
 /// Verify that the datum hash with a vector of proofs will produce the Merkle root. Also need the

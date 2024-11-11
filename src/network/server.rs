@@ -100,6 +100,10 @@ impl Context {
                     self.peers.remove(&addr);
                     info!("Peer {} disconnected", addr);
                 }
+                ControlSignal::Update => {
+                    trace!("Received Update signal, notifying miners to refresh state");
+                    // Implement any additional update logic here if needed
+                }
                 ControlSignal::SendToPeer((_receiver, _msg)) => {
                     unimplemented!()
                 }
@@ -266,6 +270,11 @@ impl Handle {
     pub fn send(&self, receiver: Address, msg: message::Message) {
         smol::block_on(self.control_chan.send(ControlSignal::SendToPeer((receiver, msg)))).unwrap();
     }
+    
+    pub fn update(&self) {
+        // Send an Update signal to notify miners to pause and refresh their tip
+        smol::block_on(self.control_chan.send(ControlSignal::Update)).unwrap();
+    }
 
     #[cfg(any(test,test_utilities))]
     pub fn new_for_test() -> (Handle, TestReceiver) {
@@ -285,4 +294,5 @@ enum ControlSignal {
     GetNewPeer(Async<net::TcpStream>),
     DroppedPeer(std::net::SocketAddr),
     SendToPeer((Address,message::Message)),
+    Update,
 }
