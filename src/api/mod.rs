@@ -134,7 +134,7 @@ impl Server {
                                     return;
                                 }
                             };
-                            tx_generator.start(5000 * theta);
+                            tx_generator.start(theta);
                             respond_result!(req, true, "ok");
                         }
                         "/network/ping" => {

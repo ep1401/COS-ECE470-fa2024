@@ -73,7 +73,7 @@ impl TransactionGenerator {
    fn generate_transactions(&self, theta: u64) {
     let mut receiver_index = 0;
     // let interval = time::Duration::from_millis(10 * theta);
-    let interval = time::Duration::from_millis((4.8_f64 * theta as f64) as u64);
+    let interval = time::Duration::from_millis((2.5_f64 * theta as f64) as u64);
 
 
     loop {
@@ -117,7 +117,7 @@ impl TransactionGenerator {
         // Broadcast the transaction
         let tx_hash = signed_tx.hash();
         self.server.broadcast(Message::NewTransactionHashes(vec![tx_hash]));
-        println!("TransactionGenerator - Broadcast transaction: {:?}", tx_hash);
+        // println!("TransactionGenerator - Broadcast transaction: {:?}", tx_hash);
 
         // Alternate receiver address
         receiver_index = 1 - receiver_index;

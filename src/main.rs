@@ -136,7 +136,7 @@ fn main() {
         Arc::clone(&mempool),
         finished_tx_sender,
     );
-    transaction_generator.clone().start(100);
+    // transaction_generator.clone().start(100);
 
     // Start the miner
     let (miner_ctx, miner, finished_block_chan) = miner::new(
