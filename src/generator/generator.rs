@@ -19,6 +19,7 @@ use crate::types::hash::H256;
 
 use ring::signature::KeyPair;
 use crate::types::hash::Hashable;
+use std::collections::HashMap;
 
 
 #[derive(Clone)]
@@ -72,9 +73,7 @@ impl TransactionGenerator {
 
    fn generate_transactions(&self, theta: u64) {
     let mut receiver_index = 0;
-    // let interval = time::Duration::from_millis(10 * theta);
     let interval = time::Duration::from_millis((2.5_f64 * theta as f64) as u64);
-
 
     loop {
         // Get the current tip of the blockchain
@@ -84,20 +83,52 @@ impl TransactionGenerator {
             tip = blockchain.tip().clone();
         }
 
+        // Retrieve the state for the sender from the block_state_map
+        let mut sender_state = (0, 0);  // Default sender state (nonce, balance)
+        {
+            let block_state_map = self.block_state_map.lock().unwrap();
+            if let Some(state) = block_state_map.block_state_map.get(&tip) {
+                if let Some(state_for_sender) = state.get(&self.address) {
+                    sender_state = state_for_sender.clone();
+                }
+            }
+        }
+
+        // Debugging output for sender state
+        info!("Sender state for {:?}: nonce = {}, balance = {}", self.address, sender_state.0, sender_state.1);
+
+        // If the sender balance is 0, we skip transaction generation
+        if sender_state.1 == 0 {
+            info!("Skipping transaction for sender {:?}, balance is 0", self.address);
+            continue;
+        }
+
+        // Generate the transaction value as half the balance or at least 1
+        let mut value = sender_state.1 / 2;
+        if value == 0 {
+            value = 1;
+        }
+
+        // Generate the nonce for the transaction (should be the stored sender nonce)
+        let nonce = sender_state.0; // Use the stored nonce for the sender
+        let account_nonce = nonce + 1; // The account nonce should always be one higher
+
+        // Validate the nonce (should match the sender's current nonce + 1)
+        if account_nonce != sender_state.0 + 1 {
+            info!("Skipping invalid transaction for sender {:?}, expected nonce: {}, got: {}", 
+                  self.address, sender_state.0 + 1, account_nonce);
+            continue;  // Skip transaction generation if invalid nonce
+        }
+
         // Choose the receiver address
         let receiver = self.receiver_addresses[receiver_index];
 
-        // For simplicity, assume the sender has sufficient balance
-        let mut rng = rand::thread_rng();
-        let value = rng.gen_range(1..=100); // Random transaction value between 1 and 100
-        let nonce = rng.gen_range(1..=1000); // Random nonce for testing
-
-        // Create a new transaction
+        // Create a new transaction using the state-derived nonce
         let tx = Transaction {
             sender: self.address,
             receiver,
             value,
-            account_nonce: nonce,
+            account_nonce: account_nonce, // Increment the nonce for the transaction
         };
 
         // Sign the transaction
@@ -117,7 +148,6 @@ impl TransactionGenerator {
         // Broadcast the transaction
         let tx_hash = signed_tx.hash();
         self.server.broadcast(Message::NewTransactionHashes(vec![tx_hash]));
-        // println!("TransactionGenerator - Broadcast transaction: {:?}", tx_hash);
 
         // Alternate receiver address
         receiver_index = 1 - receiver_index;
@@ -126,4 +156,5 @@ impl TransactionGenerator {
         thread::sleep(interval);
     }
 }
+
 }

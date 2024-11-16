@@ -94,7 +94,6 @@ impl Worker {
                             missing_blocks.push(block);
                         }
                     }
-                    //https://piazza.com/class/kykjhx727ab1ge?cid=84
                     if missing_blocks.len() != 0 {
                         peer.write(Message::GetBlocks(missing_blocks));
                     }
@@ -120,7 +119,6 @@ impl Worker {
                             send_blocks.push(result.clone());
                         }
                     }
-                    //https://piazza.com/class/kykjhx727ab1ge?cid=84
                     if send_blocks.len() != 0 {
                         peer.write(Message::Blocks(send_blocks));
                     }
@@ -142,50 +140,94 @@ impl Worker {
                     let mut broadcast_blocks: Vec<H256> = Vec::<H256>::new();
                     let mut parent_blocks: Vec<H256> = Vec::<H256>::new();
                     let mut blockchain = self.blockchain.lock().unwrap();
-                    //process_blocks represents blocks to process for orphan blocks
+                    // process_blocks represents blocks to process for orphan blocks
                     let mut process_blocks = Vec::<Block>::new();
                     let mut orphan_buffer: OrphanBuffer = OrphanBuffer::new();
                     'block:for block in blocks {
                         if !blockchain.blocks.contains_key(&block.hash()) {
-                            //Proof of Work
+                            // Proof of Work
                             if !(block.hash() <= DIFFICULTY.into()) {
                                 continue;
                             }
-
-                            ///////////////Transaction Checks////////////////////////////////////////////////
-                            //here only check for signature
+                            
+                            // TRANSACTION CHECKS
+                            // here only check for signature
                             for transaction in &block.content.transactions {
                                 if !verify(&transaction.transaction, &transaction.public_key, &transaction.signature) {
                                     continue 'block;
                                 }
                             }
-                            //////////////////////////////////////////////////////////////////////////////////
                             
-                            //Parent Check/Orphan Block Check
+                            // Parent Check/Orphan Block Check
                             let parent_hash = block.get_parent();
                             if blockchain.blocks.contains_key(&parent_hash) {
-                                
+                                let mut parent_state = self.block_state_map.lock().unwrap().block_state_map.get(&parent_hash).unwrap().clone();
+                                for tx in &block.content.transactions {
+                                    let sender = tx.transaction.sender;
+                                    let sender_state;
+                                    if parent_state.contains_key(&sender) {
+                                        sender_state = parent_state.get(&sender).unwrap().clone();
+                                    } else {
+                                        sender_state = (0, 0);
+                                    }
+                                    if (tx.transaction.value > sender_state.1) || (tx.transaction.account_nonce != sender_state.0 + 1) {
+                                        continue 'block;
+                                    }
+                                    // at this point the transaction is valid so update local state copy
+                                    parent_state.insert(tx.transaction.sender, (sender_state.0 + 1, sender_state.1 - &tx.transaction.value));
+                                    let receiver_state;
+                                    if parent_state.contains_key(&tx.transaction.receiver) {
+                                        receiver_state = parent_state.get(&tx.transaction.receiver).unwrap().clone();
+                                    } else {
+                                        receiver_state = (0, 0);
+                                    }
+                                    parent_state.insert(tx.transaction.receiver, (receiver_state.0, receiver_state.1 + &tx.transaction.value));
+                                }
+                                self.block_state_map.lock().unwrap().block_state_map.insert(block.hash(), parent_state);
                                 blockchain.insert(&block);
                                 let mut mempool = self.mempool.lock().unwrap();
                                 for tx in &block.content.transactions.clone() {
                                     mempool.remove(&tx.hash());
                                 }
                                 broadcast_blocks.push(block.hash());
-                                //need to check for orphans
+                                // need to check for orphans
                                 process_blocks.push(block.clone());
                             } else {
                                 orphan_buffer.orphans.push(block.clone());
                                 parent_blocks.push(parent_hash.clone());
                             }
 
-                            //Orphan Buffer Check
+                            // Orphan Buffer Check
                             let mut keep_orphans = Vec::<Block>::new();
                             while !process_blocks.is_empty() {
                                 let block = process_blocks.pop().unwrap();
                                 for orphan in orphan_buffer.orphans.clone() {
-                                    //block is parent, don't keep orphan
+                                    // block is parent, don't keep orphan
                                     if orphan.get_parent() == block.hash() {
-                                        
+                                        // here check balance and nonce
+                                        let mut parent_state = self.block_state_map.lock().unwrap().block_state_map.get(&block.hash()).unwrap().clone();
+                                        for tx in &orphan.content.transactions {
+                                            let sender = tx.transaction.sender;
+                                            let sender_state;
+                                            if parent_state.contains_key(&sender) {
+                                                sender_state = parent_state.get(&sender).unwrap().clone();
+                                            } else {
+                                                sender_state = (0, 0);
+                                            }
+                                            if (tx.transaction.value > sender_state.1) || (tx.transaction.account_nonce != sender_state.0 + 1) {
+                                                continue 'block;
+                                            }
+                                            // at this point the transaction is valid so update local state copy
+                                            parent_state.insert(tx.transaction.sender, (sender_state.0 + 1, sender_state.1 - &tx.transaction.value));
+                                            let receiver_state;
+                                            if parent_state.contains_key(&tx.transaction.receiver) {
+                                                receiver_state = parent_state.get(&tx.transaction.receiver).unwrap().clone();
+                                            } else {
+                                                receiver_state = (0, 0);
+                                            }
+                                            parent_state.insert(tx.transaction.receiver, (receiver_state.0, receiver_state.1 + &tx.transaction.value));
+                                        }
+                                        self.block_state_map.lock().unwrap().block_state_map.insert(orphan.hash(), parent_state);
                                         blockchain.insert(&orphan);
                                         let mut mempool = self.mempool.lock().unwrap();
                                         for tx in block.content.transactions.clone() {
@@ -194,10 +236,10 @@ impl Worker {
                                         broadcast_blocks.push(block.hash());
                                         process_blocks.push(block.clone());
                                     } 
-                                    //block isn't parent, keep orphan
+                                    // block isn't parent, keep orphan
                                     else { keep_orphans.push(orphan); }
                                 }
-                                //update orphan buffer with kept orphans & reset keep_orpans
+                                // update orphan buffer with kept orphans & reset keep_orpans
                                 orphan_buffer.orphans = keep_orphans.clone();
                                 keep_orphans = Vec::<Block>::new();
                             }
@@ -207,7 +249,6 @@ impl Worker {
                     if parent_blocks.len() != 0 {
                         peer.write(Message::GetBlocks(parent_blocks));
                     }
-                    //https://piazza.com/class/kykjhx727ab1ge?cid=84
                     if broadcast_blocks.len() != 0 {
                         self.server.broadcast(Message::NewBlockHashes(broadcast_blocks));
                     }

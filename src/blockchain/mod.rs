@@ -4,7 +4,8 @@ use crate::types::hash::Hashable;
 use std::collections::HashMap;
 
 //pub static DIFFICULTY: [u8; 32] = [0, 0, 30, 50, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10];
-pub static DIFFICULTY: [u8; 32] = [0, 3, 10, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
+//pub static DIFFICULTY: [u8; 32] = [0, 3, 10, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
+pub static DIFFICULTY: [u8; 32] = [0, 1, 150, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
 
 pub struct Blockchain {
     pub blocks: HashMap<H256, Block>,

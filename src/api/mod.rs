@@ -176,6 +176,78 @@ impl Server {
                             // unimplemented!()
                             respond_result!(req, false, "unimplemented!");
                         }
+                        // API handler for "/blockchain/state" route
+                        "/blockchain/state" => {
+                            // Extract the block parameter from the query string
+                            let params = url.query_pairs();
+                            let params: HashMap<_, _> = params.into_owned().collect();
+                            
+                            // Debugging: Print the received parameters
+                            println!("Received parameters: {:?}", params);
+
+                            let block = match params.get("block") {
+                                Some(v) => v,
+                                None => {
+                                    println!("Missing block parameter");
+                                    respond_result!(req, false, "missing block parameter");
+                                    return;
+                                }
+                            };
+
+                            // Parse the block parameter to a block number
+                            let block_number = match block.parse::<u64>() {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    println!("Error parsing block: {}", e);
+                                    respond_result!(req, false, format!("error parsing block: {}", e));
+                                    return;
+                                }
+                            };
+
+                            // Debugging: Print the parsed block number
+                            println!("Parsed block number: {}", block_number);
+
+                            // Lock the blockchain and get the block hashes in the longest chain
+                            let blockchain = blockchain.lock().unwrap();
+                            let blocks_in_longest_chain = blockchain.all_blocks_in_longest_chain();
+
+                            // Debugging: Print the length of the longest chain
+                            println!("Longest chain length: {}", blocks_in_longest_chain.len());
+
+                            // Check if the block number is within the bounds of the longest chain
+                            if block_number < blocks_in_longest_chain.len() as u64 {
+                                let block_hash = blocks_in_longest_chain[block_number as usize];
+                                
+                                // Debugging: Print the block hash
+                                println!("Block hash at block number {}: {:?}", block_number, block_hash);
+
+                                // Lock the block state map to retrieve the state for the specific block hash
+                                let block_state_map = block_state_map.lock().unwrap();
+                                println!("The length of block_state_map is: {}", block_state_map.block_state_map.len());
+                                
+                                if let Some(block_state) = block_state_map.block_state_map.get(&block_hash) {
+                                    // Debugging: Print the block state
+                                    println!("Block state found for block hash {:?}: {:?}", block_hash, block_state);
+
+                                    // Format and return the state of the block
+                                    let state: Vec<String> = block_state
+                                        .iter()
+                                        .map(|(address, (nonce, balance))| {
+                                            format!("({}, {}, {})", address, nonce, balance)
+                                        })
+                                        .collect();
+                                    
+                                    respond_json!(req, state); // Respond with the block state as JSON
+                                } else {
+                                    println!("State not found for block hash {:?}", block_hash);
+                                    respond_result!(req, false, "State not found for block");
+                                }
+                            } else {
+                                println!("Block number {} is out of bounds", block_number);
+                                respond_result!(req, false, "Block not found");
+                            }
+                        }
+
                         _ => {
                             let content_type =
                                 "Content-Type: application/json".parse::<Header>().unwrap();
